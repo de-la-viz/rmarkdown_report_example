@@ -1,2 +1,3 @@
-# rmarkdown_report_example
-An example of how a report can be written in Rmarkdown, in a reproducible and automatable way.
+# Rmarkdown Report
+
+This is a work sample to illustrate how a report can be built with RMarkdown. Everything is written in R and markdown. The data is processed, reshaped, analyzed, and plotted in the same [document](https://github.com/de-la-viz/rmarkdown_report_example/blob/master/sample_automated_Rmd_report.Rmd) as the report is written. Thus, the report is automatable and reproducible. A [LaTeX template](https://github.com/de-la-viz/rmarkdown_report_example/blob/master/my_tex_template.tex) is used for the design, and [the output is a PDF](https://github.com/de-la-viz/rmarkdown_report_example/blob/master/sample_automated_Rmd_report.pdf). The layout, the style of the plots, and the fonts used (currently IBM Plex Sans) can be adapted to fit your corporate design. Variations of this report (without LaTeX template) could output Powerpoint or PDF presentations, HTML reports, or HTML presentations.
