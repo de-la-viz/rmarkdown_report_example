@@ -1,0 +1,197 @@
+---
+title: "Example of Report"
+author: "Delavyz"
+company_name: "Company name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+mainfont: IBM Plex Sans
+urlcolor: blue
+output: 
+  pdf_document:
+    template: my_tex_template.tex # default.tex
+    latex_engine: xelatex # needed for changing font or fontspec
+    toc: true
+    extra_dependencies: ["flafter"] # force the floating figures to always appear at or after their position (not before)
+    
+---
+
+```{r setup, include=FALSE}
+
+# global options for code chunks (can be overwritten if needed)
+knitr::opts_chunk$set(echo = FALSE, # we don't need to print code
+                      fig.align = 'center',
+                      # fig.retina = 3, # higher retina = higher fig res.
+                      fig.width = 6, 
+                      fig.height = 4,
+                      warning = FALSE,
+                      message = FALSE) 
+
+# Load packages:
+library(ggplot2) # plotting
+library(dplyr) # filtering and manipulating data
+library(haven) # to use as_factor()
+library(rio) # good package for importing data
+library(stringr) # to use str_sub and extract year from academic year
+library(forcats) # to change factor levels
+library(scales) # for scales as percentages
+
+
+# Import data
+graduates <- rio::import("Graduates2(Eng).csv") %>%
+  mutate(Level = as_factor(`Level of Study`),
+         Year = as.integer(str_sub(`Academic Year`, start = 1L, end = 4)), # first year of Academic year as numeric if needed
+         # Year = as_factor(`Academic Year`),
+         Category = as_factor(`Broad Academic Programme Category` ),
+         Gender = as_factor(Sex),
+         Headcount = `Number of Graduates (Headcount)`
+  ) %>% # rename and convert to factor
+  select(Year, Gender, Level, Category, Headcount) %>%
+  mutate(Category = fct_relevel(Category, # manual relevel for nicer plots
+                                "Arts and Humanities", "Education", "Social Sciences", 
+                                  "Medicine, Dentistry and Health", "Business and Management", 
+                                  "Sciences", "Engineering and Technology"))
+
+
+# For plotting:
+
+# Define my color palette
+my_palette <- c("#52DEE5", "#B3B3F1", "#000000", "#ffffff")
+names(my_palette) <- c("Male", "Female", "dark", "light") 
+# ! Male and Female must be written as in the data !
+
+my_cols <- function(...) {
+  # Function to extract my_palette colors as hex codes
+  # @param ... = Character names of my_palette
+  # rational, can call by name instead of position or hex.
+  cols <- c(...)
+  if (is.null(cols))
+    return(my_palette)
+  return(my_palette[cols])
+}
+
+# Define the theme for the plots (background and text)
+my_theme <- function() {
+  theme_minimal() +
+    theme(
+      text = element_text(size = 9, color = my_cols("dark")),
+      axis.text = element_text(color = my_cols("dark")),
+      strip.text.x = element_text(size = 7, color = my_cols("dark")), # titles for facet_wrap
+      plot.background = element_rect(fill = my_cols("light"), 
+                                     color = my_cols("light")),
+      plot.title.position = "plot" # left align title
+    )
+}
+
+
+# Plotting functions:
+
+my_stacked_bar <- function(data, category, percentage, by_factor){
+  # a function to plot a categorical variable as percentage by another factor
+  # e.g. percentage males and females in each category, as a stacked bar chart
+  p <- ggplot(data = data, aes_string(x = category, y = percentage, group = by_factor)) +
+    geom_col(aes_string(fill = by_factor), position = "fill") +
+    geom_abline(slope = 0, intercept = 0.5,  col = my_cols("dark"), lty = 2, size = 0.2) +
+    coord_flip() +
+    scale_fill_manual(values = my_cols("Male", "Female")) +
+    scale_y_continuous(labels = scales::percent, breaks = c(0.5)) + # keep only the 50%
+    my_theme()
+  return(p)
+}
+
+my_lattice_line_plot <- function(data, x_axis, y_axis, facet, group, n_cols=1){
+  # line plots in a lattice by "facet" and grouped (color) by "group"
+  p <- ggplot(data,
+              aes_string(x = x_axis, y = y_axis, group = group)) +
+    geom_line(aes_string(color = group), size = 1) +
+    facet_wrap(as.formula(paste0('~', facet)), ncol = n_cols) +
+    my_theme() +
+    scale_color_manual(values = my_cols("Male", "Female"))
+  return(p)
+}
+
+
+
+```
+
+&nbsp;
+
+# About
+
+This is a work sample to illustrate how a report can be built with RMarkdown. Everything is written in R and markdown. The data is processed, reshaped, analyzed, and plotted in the same document as the report is written. Thus, the report is automatable and reproducible. A LaTeX template is used for the design, and the output is a PDF. The layout, the style of the plots, and the fonts used (currently _IBM Plex Sans_) can be adapted to fit your corporate design. Variations of this report (without LaTeX template) could output Powerpoint or PDF presentations, HTML reports, or HTML presentations.  
+
+# Background
+
+Annually, 28'500 students graduate from programs funded by the [University Grants Committee](https://www.ugc.edu.hk/eng/ugc/index.html) (UGC) in Hong Kong. The mission of UGC is to nurture high-quality people to promote the economic and social development of Hong Kong. The dataset can be downloaded from [data.gov.hk](https://data.gov.hk/en-data/dataset/hk-ugc-ugc-student-graduates2).  
+
+**Are male and female students equally represented among the graduates who will build the future of Hong Kong?**  
+
+
+# Key Findings
+
+## Gender Balance by Category
+
+The gender balance varies greatly by Academic Programme Category. Some categories are dominated by female graduates and others by male. On average, over the 10 academic years considered, 54.9% of the graduates were women.
+
+&nbsp;
+
+
+```{r gender_balance_cat, fig.height = 2.2}
+
+gender_by_cat <- graduates %>% 
+  group_by(Category, Gender) %>%
+  summarise(Headcount = sum(Headcount)) %>%
+  group_by(Category) %>%
+  mutate(Percentage = Headcount/sum(Headcount)) 
+
+my_stacked_bar(gender_by_cat, "Category", "Percentage", "Gender") +
+  labs(
+    title = "The gender balance varies greatly by category",
+    x = "",
+    y = "Gender Balance"
+  ) +
+  geom_text(aes(label = paste0(round(100 * Percentage, 1), "%") ), 
+            position = position_stack(vjust = 0.5),
+            color = my_cols("dark"),
+            size = 2)
+
+
+```
+
+
+## Evolution Over Time
+
+The gender imbalance in Engineering and Technology is increasing. Despite the overall growth of the number of graduates, the number of female graduates has remained stable. The percentage of men went up from to 63.8% in 2009/10 to 69.5% in 2018/19.
+
+&nbsp;
+
+```{r time_trends_cat, fig.width=6.2}
+
+# headcount by year, category and gender:
+gender_by_cat_over_time <- graduates %>% 
+  group_by(Year, Category, Gender) %>%
+  summarise(Headcount = sum(Headcount))
+
+my_lattice_line_plot(data = gender_by_cat_over_time, 
+                     x_axis = "Year", 
+                     y_axis = "Headcount", 
+                     facet = "Category", 
+                     group = "Gender", 
+                     n_cols = 4) +
+  theme(legend.position = c(0.87, 0.24)) + # c(0,0) bottom left, c(1,1) top-right.
+  labs(
+    title = "Number of graduates by category and gender",
+    subtitle = "Over the last 10 academic years",
+    x = "Academic Year",
+    y = "Headcount"
+    ) + 
+  theme(axis.text.x = element_text(size = 7)) # deal with cluttered x axis labels
+
+```
+
+# Conclusion
+
+We highlight two key observations that we made when exploring the data. These actionable insights aim at informing decision-makers: UGS programme leads or other policymakers.  
+
+This report highlights the importance of open data for democratic control of government-funded institutions as well as for informing the public and politicians.
+
+
+
